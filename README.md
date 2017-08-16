@@ -1,74 +1,105 @@
-debian-ssh
-==========
+# Init :
 
-Simple Debian/Ubuntu Docker images with *passwordless* SSH access and a regular user
-with `sudo` rights
+`git clone git@github.com:snroki/debian-ssh.git`
 
-Tags (and their corresponding official base images)
-----
+`cd debian-ssh && make run`
 
-### Debian
-
-- `latest` -> `debian:latest`
-- `jessie` -> `debian:jessie`
-- `wheezy` -> `debian:wheezy`
-- `squeeze` -> `debian:squeeze`
-
-### Ubuntu
-
-- `ubuntu` -> `ubuntu:latest`
-- `vivid` -> `ubuntu:vivid`
-- `utopic` -> `ubuntu:utopic`
-- `trusty` -> `ubuntu:trusty`
-- `precise` -> `ubuntu:precise`
+`ssh root@localhost -p 2222`
 
 
-Using
------
+# Debian :
 
-The images are built by [Docker hub](https://registry.hub.docker.com/u/krlmlr/debian-ssh/).
-Each Debian release corresponds to a tag.  To run an SSH daemon in a new Debian "wheezy"
-container:
+## La base
 
-    docker run -d -p 2222:22 -e SSH_KEY="$(cat ~/.ssh/id_rsa.pub)" krlmlr/debian-ssh:wheezy
+- Mettre à jour la distrib :
+`apt update && apt upgrade`
 
-This requires a public key in `~/.ssh/id_rsa.pub`.
+- Ajouter un nouvel utilisateur :
+`adduser caca`
 
-Two users exist in the container: `root` (superuser) and `docker` (a regular user
-with passwordless `sudo`). SSH access using your key will be allowed for both
-`root` and `docker` users.
-To connect to this container as root:
+- Mettre à jour le mot de passe root :
+`passwd`
 
-    ssh -p 2222 root@localhost
+- Optionnel : Mettre en place les mises à jours de sécurité automatiques :
+https://www.cyberciti.biz/faq/how-to-keep-debian-linux-patched-with-latest-security-updates-automatically/
 
-To connect to this container as regular user:
+## Openssh
 
-    ssh -p 2222 docker@localhost
+Dans le fichier suivant : `vim /etc/ssh/sshd_config`
 
-Change `2222` to any local port number of your choice.
+- Désactiver le login en tant que root :
+modifier la ligne `PermitRootLogin yes` en `PermitRootLogin no`
 
+- Optionnel : Activer uniquement le login par ssh key
+https://www.digitalocean.com/community/tutorials/how-to-set-up-ssh-keys--2
+et modifier la ligne `PasswordAuthentication yes` en `PasswordAuthentication no`
 
-Enhancing
----------
+- Optionnel : Changer le port ssh
+modifier la ligne `#Port 22` en `Port *whatever*`
 
-Each Debian release corresponds to a Git branch, the branches differ only by
-the `FROM` element in the `Dockerfile`.
+## Iptables
 
-To create the image `krlmlr/debian-ssh` e.g. for Debian "jessie":
+- Vérifier l'état actuel des tables : `iptables -L`, si la chain INPUT est en policy DROP jouer cette commande `iptables -t filter -P INPUT ACCEPT`
 
-    git checkout jessie
-    make build
+- Purger les règles existantes : `iptables -F`
 
-Use `make rebuild` to pull the base image and rebuild without caching.
+- Rajouter une règle pour la connexion actuelle (histoire de pas perdre son shell ssh) : `iptables -A INPUT -m conntrack --ctstate ESTABLISHED,RELATED -j ACCEPT`
 
+- Autoriser le loopback (permet la communication avec un dns local) : `iptables -A INPUT -i lo -j ACCEPT`
 
-Testing
--------
+- Refuser n'importe quelle connexion entrante : `iptables -P INPUT DROP`
 
-Execute `make test` to create a container and fetch all environment variables
-via SSH.  This requires an `.ssh/id_rsa.pub` file in your home, it will be
-passed to the container via the environment variable `SSH_KEY` and installed.
-The `Makefile` is configured to run the container with the limited `docker`
-account, this user is allowed to run `sudo` without requiring a password.
-The SSH daemon will be always run with root access.  The `debug-*` targets
-can help troubleshooting any issues you might encounter.
+- Autoriser les connexions ssh : `iptables -A INPUT -p tcp --dport 22 -j ACCEPT`
+
+- Autoriser les connexions web (port 80 et 443) : `iptables -A INPUT -p tcp --dport 80 -j ACCEPT` et `iptables -A INPUT -p tcp --dport 443 -j ACCEPT`
+
+- Optionnel : Faire en sorte que ces règles restent même si votre serveur se redémarre : https://serversforhackers.com/video/firewall-persisting-iptables-rules
+
+- Optionnel : Si votre serveur a un ipv6 il faut jouer les mêmes règles pour les ip6tables
+
+## Fail2ban
+
+- Installation du package : `apt install fail2ban`
+
+- Editer la configuration : `vim /etc/fail2ban/jail.conf` (vous pouvez changer la conf pour la connexion ssh)
+
+- Penser à rajouter des configurations pour vos applications ! (ex sur le login wordpress)
+
+# MariaDB :
+
+- Installation du package : `apt install mariadb-server`
+
+- Rendre l'installation plus secure : `mysql_secure_installation` (supprime l'accès extérieur pour le user root + les databases de test + les users anonymes)
+
+- Optionnel : Créer une database et un user (qui n'a accès qu'à cette base) pour chaque appli ! (ne pas utiliser le root)
+
+# Php :
+
+Pourquoi FPM : http://php.net/manual/en/install.fpm.php
+
+- Installation du package : `apt install php7.0-fpm php7.0-cli php7.0-mysql`
+
+- Optionnel : n'installer que les modules vraiment utiles
+
+- Optionnel : utiliser le même utilisateur que pour nginx (www-data par exemple)
+
+- Plus d'infos : https://www.cyberciti.biz/tips/php-security-best-practices-tutorial.html
+
+# Nginx :
+
+- Installation du package : `apt install nginx`
+
+- Optionnel : change l'utilisateur (ex : www-data) `vim /etc/nginx/nginx.conf` et modifier la ligne `user` par `user www-data`
+
+- Optionnel : mettre root directory dans le répertoire home de notre utilisateur
+
+- Optionnel : configurer son site correctement pour bloquer certains headers + ssl
+
+https://www.abyssproject.net/2016/11/a-la-recherche-de-la-configuration-parfaite-pour-nginx/
+https://poweruphosting.com/blog/secure-nginx-server
+https://gist.github.com/plentz/6737338
+
+# Pour aller plus loin :
+
+- installer à la mano sa distrib : https://blog.tetsumaki.net/articles/2017/07/installation-de-debian-9-stretch-depuis-debootstrap.html
+- chiffrer intégralement son vps : https://blog.imirhil.fr/2017/07/22/stockage-chiffre-serveur.html
