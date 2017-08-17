@@ -1,6 +1,6 @@
 # Init :
 
-`git clone git@github.com:snroki/debian-ssh.git`
+`git clone https://github.com/snroki/debian-ssh.git`
 
 `cd debian-ssh && make run`
 
@@ -17,7 +17,7 @@
 - Ajouter un nouvel utilisateur :
 `adduser caca`
 
-- Mettre à jour le mot de passe root :
+- Mettre à jour le mot de passe root (on ne va pas le faire vu qu'on utilise docker) :
 `passwd`
 
 - Optionnel : Mettre en place les mises à jours de sécurité automatiques :
@@ -25,7 +25,7 @@ https://www.cyberciti.biz/faq/how-to-keep-debian-linux-patched-with-latest-secur
 
 ## Openssh
 
-Dans le fichier suivant : `vim /etc/ssh/sshd_config`
+Dans le fichier suivant : `vim /etc/ssh/sshd_config` (on ne va pas le faire vu qu'on utilise docker)
 
 - Désactiver le login en tant que root :
 modifier la ligne `PermitRootLogin yes` en `PermitRootLogin no`
@@ -58,6 +58,8 @@ modifier la ligne `#Port 22` en `Port *whatever*`
 - Optionnel : Si votre serveur a un ipv6 il faut jouer les mêmes règles pour les ip6tables
 
 ## Fail2ban
+
+- Si docker : penser à démarrer le service rsyslog
 
 - Installation du package : `apt install fail2ban`
 
